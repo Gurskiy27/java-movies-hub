@@ -3,9 +3,11 @@ package ru.practicum.moviehub.http;
 import com.google.gson.Gson;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import ru.practicum.moviehub.api.ErrorResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 public abstract class BaseHttpHandler implements HttpHandler {
 
@@ -48,7 +50,7 @@ public abstract class BaseHttpHandler implements HttpHandler {
     ) throws IOException {
 
         ErrorResponse response =
-                new ErrorResponse(message, null);
+                new ErrorResponse(message, List.of());
 
         sendJson(exchange, status, response);
     }

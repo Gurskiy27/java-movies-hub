@@ -1,10 +1,16 @@
 package ru.practicum.moviehub;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.reflect.TypeToken;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.practicum.moviehub.api.ErrorResponse;
 import ru.practicum.moviehub.http.MoviesServer;
+import ru.practicum.moviehub.model.Movie;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -12,17 +18,22 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MoviesApiTest {
 
     private static MoviesServer server;
     private static HttpClient client;
+    private static final Gson GSON = new Gson();
 
     @BeforeAll
     static void beforeAll() {
+
         server = new MoviesServer(
                 new ru.practicum.moviehub.store.MoviesStore(),
                 8080
@@ -49,7 +60,9 @@ public class MoviesApiTest {
     void shouldReturnEmptyMoviesList() throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies"))
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
                 .GET()
                 .build();
 
@@ -62,21 +75,36 @@ public class MoviesApiTest {
                 );
 
         assertEquals(200, response.statusCode());
+
         assertEquals(
                 "application/json; charset=UTF-8",
                 response.headers()
                         .firstValue("Content-Type")
                         .orElse("")
         );
-        assertEquals("[]", response.body());
+
+        List<Movie> movies =
+                GSON.fromJson(
+                        response.body(),
+                        new TypeToken<List<Movie>>() {
+                        }.getType()
+                );
+
+        assertNotNull(movies);
+        assertTrue(movies.isEmpty());
     }
 
     @Test
     void shouldCreateMovie() throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies"))
-                .header("Content-Type", "application/json")
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .header(
+                        "Content-Type",
+                        "application/json"
+                )
                 .POST(
                         HttpRequest.BodyPublishers.ofString(
                                 """
@@ -99,9 +127,17 @@ public class MoviesApiTest {
                 );
 
         assertEquals(201, response.statusCode());
-        assertTrue(response.body().contains("\"id\""));
-        assertTrue(response.body().contains("Интерстеллар"));
-        assertTrue(response.body().contains("2014"));
+
+        Movie movie =
+                GSON.fromJson(
+                        response.body(),
+                        Movie.class
+                );
+
+        assertNotNull(movie);
+        assertEquals(1, movie.getId());
+        assertEquals("Интерстеллар", movie.getTitle());
+        assertEquals(2014, movie.getYear());
     }
 
     @Test
@@ -110,7 +146,9 @@ public class MoviesApiTest {
         createMovie("Интерстеллар", 2014);
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies"))
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
                 .GET()
                 .build();
 
@@ -123,7 +161,19 @@ public class MoviesApiTest {
                 );
 
         assertEquals(200, response.statusCode());
-        assertTrue(response.body().contains("Интерстеллар"));
+
+        List<Movie> movies =
+                parseMovies(response.body());
+
+        assertEquals(1, movies.size());
+        assertEquals(
+                "Интерстеллар",
+                movies.get(0).getTitle()
+        );
+        assertEquals(
+                2014,
+                movies.get(0).getYear()
+        );
     }
 
     @Test
@@ -132,7 +182,9 @@ public class MoviesApiTest {
         createMovie("Интерстеллар", 2014);
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies/1"))
+                .uri(URI.create(
+                        "http://localhost:8080/movies/1"
+                ))
                 .GET()
                 .build();
 
@@ -145,15 +197,29 @@ public class MoviesApiTest {
                 );
 
         assertEquals(200, response.statusCode());
-        assertTrue(response.body().contains("Интерстеллар"));
-        assertTrue(response.body().contains("\"id\":1"));
+
+        Movie movie =
+                GSON.fromJson(
+                        response.body(),
+                        Movie.class
+                );
+
+        assertNotNull(movie);
+        assertEquals(1, movie.getId());
+        assertEquals(
+                "Интерстеллар",
+                movie.getTitle()
+        );
+        assertEquals(2014, movie.getYear());
     }
 
     @Test
     void shouldReturn404ForUnknownMovie() throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies/999"))
+                .uri(URI.create(
+                        "http://localhost:8080/movies/999"
+                ))
                 .GET()
                 .build();
 
@@ -166,13 +232,29 @@ public class MoviesApiTest {
                 );
 
         assertEquals(404, response.statusCode());
+
+        ErrorResponse error =
+                GSON.fromJson(
+                        response.body(),
+                        ErrorResponse.class
+                );
+
+        assertNotNull(error);
+        assertEquals(
+                "Фильм не найден",
+                error.getError()
+        );
+        assertNotNull(error.getDetails());
+        assertTrue(error.getDetails().isEmpty());
     }
 
     @Test
     void shouldReturn400ForInvalidMovieId() throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies/abc"))
+                .uri(URI.create(
+                        "http://localhost:8080/movies/abc"
+                ))
                 .GET()
                 .build();
 
@@ -192,27 +274,57 @@ public class MoviesApiTest {
 
         createMovie("Интерстеллар", 2014);
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies/1"))
-                .DELETE()
-                .build();
+        HttpRequest deleteRequest =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(
+                                "http://localhost:8080/movies/1"
+                        ))
+                        .DELETE()
+                        .build();
 
-        HttpResponse<String> response =
+        HttpResponse<String> deleteResponse =
                 client.send(
-                        request,
+                        deleteRequest,
                         HttpResponse.BodyHandlers.ofString(
                                 StandardCharsets.UTF_8
                         )
                 );
 
-        assertEquals(204, response.statusCode());
+        assertEquals(
+                204,
+                deleteResponse.statusCode()
+        );
+
+        HttpRequest getRequest =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(
+                                "http://localhost:8080/movies/1"
+                        ))
+                        .GET()
+                        .build();
+
+        HttpResponse<String> getResponse =
+                client.send(
+                        getRequest,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(
+                404,
+                getResponse.statusCode()
+        );
     }
 
     @Test
-    void shouldReturn404WhenDeletingUnknownMovie() throws Exception {
+    void shouldReturn404WhenDeletingUnknownMovie()
+            throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies/999"))
+                .uri(URI.create(
+                        "http://localhost:8080/movies/999"
+                ))
                 .DELETE()
                 .build();
 
@@ -249,12 +361,24 @@ public class MoviesApiTest {
                 );
 
         assertEquals(200, response.statusCode());
-        assertTrue(response.body().contains("Интерстеллар"));
-        assertTrue(!response.body().contains("Матрица"));
+
+        List<Movie> movies =
+                parseMovies(response.body());
+
+        assertEquals(1, movies.size());
+        assertEquals(
+                "Интерстеллар",
+                movies.get(0).getTitle()
+        );
+        assertEquals(
+                2014,
+                movies.get(0).getYear()
+        );
     }
 
     @Test
-    void shouldReturnEmptyListForUnknownYear() throws Exception {
+    void shouldReturnEmptyListForUnknownYear()
+            throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
@@ -272,7 +396,12 @@ public class MoviesApiTest {
                 );
 
         assertEquals(200, response.statusCode());
-        assertEquals("[]", response.body());
+
+        List<Movie> movies =
+                parseMovies(response.body());
+
+        assertNotNull(movies);
+        assertTrue(movies.isEmpty());
     }
 
     @Test
@@ -310,10 +439,25 @@ public class MoviesApiTest {
                 );
 
         assertEquals(422, response.statusCode());
+
+        ErrorResponse error =
+                GSON.fromJson(
+                        response.body(),
+                        ErrorResponse.class
+                );
+
+        assertEquals(
+                "Ошибка валидации",
+                error.getError()
+        );
+
+        assertNotNull(error.getDetails());
+        assertFalse(error.getDetails().isEmpty());
     }
 
     @Test
-    void shouldReturn422ForTooLongTitle() throws Exception {
+    void shouldReturn422ForTooLongTitle()
+            throws Exception {
 
         String title = "А".repeat(101);
 
@@ -331,7 +475,8 @@ public class MoviesApiTest {
     }
 
     @Test
-    void shouldReturn422ForInvalidYear() throws Exception {
+    void shouldReturn422ForInvalidYear()
+            throws Exception {
 
         HttpResponse<String> response =
                 createMovieRequest(
@@ -347,11 +492,17 @@ public class MoviesApiTest {
     }
 
     @Test
-    void shouldReturn415ForWrongContentType() throws Exception {
+    void shouldReturn415ForWrongContentType()
+            throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies"))
-                .header("Content-Type", "text/plain")
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .header(
+                        "Content-Type",
+                        "text/plain"
+                )
                 .POST(
                         HttpRequest.BodyPublishers.ofString(
                                 "test",
@@ -372,7 +523,8 @@ public class MoviesApiTest {
     }
 
     @Test
-    void shouldReturn422ForInvalidJson() throws Exception {
+    void shouldReturn400ForInvalidJson()
+            throws Exception {
 
         HttpResponse<String> response =
                 createMovieRequest(
@@ -383,15 +535,35 @@ public class MoviesApiTest {
                         """
                 );
 
-        assertEquals(422, response.statusCode());
+        assertEquals(400, response.statusCode());
+
+        ErrorResponse error =
+                GSON.fromJson(
+                        response.body(),
+                        ErrorResponse.class
+                );
+
+        assertNotNull(error);
+        assertEquals(
+                "Некорректный JSON",
+                error.getError()
+        );
+        assertNotNull(error.getDetails());
+        assertTrue(error.getDetails().isEmpty());
     }
 
     @Test
-    void shouldReturn405ForUnsupportedMethod() throws Exception {
+    void shouldReturn405ForUnsupportedMethod()
+            throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies"))
-                .method("PUT", HttpRequest.BodyPublishers.noBody())
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .method(
+                        "PUT",
+                        HttpRequest.BodyPublishers.noBody()
+                )
                 .build();
 
         HttpResponse<String> response =
@@ -405,17 +577,22 @@ public class MoviesApiTest {
         assertEquals(405, response.statusCode());
     }
 
-    private void createMovie(String title, int year)
-            throws Exception {
+    private void createMovie(
+            String title,
+            int year
+    ) throws Exception {
 
-        createMovieRequest(
-                """
-                {
-                  "title": "%s",
-                  "year": %d
-                }
-                """.formatted(title, year)
-        );
+        HttpResponse<String> response =
+                createMovieRequest(
+                        """
+                        {
+                          "title": "%s",
+                          "year": %d
+                        }
+                        """.formatted(title, year)
+                );
+
+        assertEquals(201, response.statusCode());
     }
 
     private HttpResponse<String> createMovieRequest(
@@ -423,7 +600,9 @@ public class MoviesApiTest {
     ) throws Exception {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/movies"))
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
                 .header(
                         "Content-Type",
                         "application/json"
@@ -441,6 +620,15 @@ public class MoviesApiTest {
                 HttpResponse.BodyHandlers.ofString(
                         StandardCharsets.UTF_8
                 )
+        );
+    }
+
+    private List<Movie> parseMovies(String body) {
+
+        return GSON.fromJson(
+                body,
+                new TypeToken<List<Movie>>() {
+                }.getType()
         );
     }
 }

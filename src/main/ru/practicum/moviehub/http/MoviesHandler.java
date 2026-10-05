@@ -6,6 +6,7 @@ import com.google.gson.JsonParseException;
 import com.sun.net.httpserver.HttpExchange;
 import ru.practicum.moviehub.model.Movie;
 import ru.practicum.moviehub.store.MoviesStore;
+import ru.practicum.moviehub.api.ErrorResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -189,12 +190,16 @@ public class MoviesHandler extends BaseHttpHandler {
         try {
             json = JsonParser.parseString(body)
                     .getAsJsonObject();
+
         } catch (JsonParseException
                  | IllegalStateException e) {
 
-            sendValidationError(
+            // Синтаксически некорректный JSON —
+            // это Bad Request, а не ошибка валидации полей.
+            sendError(
                     exchange,
-                    List.of("Некорректный JSON")
+                    400,
+                    "Некорректный JSON"
             );
             return;
         }
@@ -207,7 +212,9 @@ public class MoviesHandler extends BaseHttpHandler {
 
             try {
                 title = json.get("title").getAsString();
+
             } catch (Exception e) {
+
                 sendValidationError(
                         exchange,
                         List.of(
@@ -223,7 +230,9 @@ public class MoviesHandler extends BaseHttpHandler {
 
             try {
                 year = json.get("year").getAsInt();
+
             } catch (Exception e) {
+
                 sendValidationError(
                         exchange,
                         List.of(
@@ -286,6 +295,11 @@ public class MoviesHandler extends BaseHttpHandler {
 
         String idPart =
                 path.substring("/movies/".length());
+
+        if (idPart.isEmpty()) {
+            sendError(exchange, 400, "Некорректный ID");
+            return;
+        }
 
         int id;
 

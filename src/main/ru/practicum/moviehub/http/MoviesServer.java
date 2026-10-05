@@ -34,6 +34,7 @@ public class MoviesServer {
 
     public void start() {
         server.start();
+
         System.out.println(
                 "MovieHub запущен на http://localhost:8080"
         );
