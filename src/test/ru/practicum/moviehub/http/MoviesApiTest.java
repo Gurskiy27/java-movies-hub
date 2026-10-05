@@ -1,29 +1,583 @@
-package ru.practicum.moviehub.http;
+package ru.practicum.moviehub;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.practicum.moviehub.api.ErrorResponse;
+import ru.practicum.moviehub.http.MoviesServer;
+import ru.practicum.moviehub.model.Movie;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MoviesApiTest {
 
+    private static MoviesServer server;
+    private static HttpClient client;
+    private static final Gson GSON = new Gson();
+
     @BeforeAll
     static void beforeAll() {
+        server = new MoviesServer(
+                new ru.practicum.moviehub.store.MoviesStore(),
+                8080
+        );
 
-    }
+        server.start();
 
-    @BeforeEach
-    void beforeEach() {
-
+        client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
     }
 
     @AfterAll
     static void afterAll() {
+        server.stop();
+    }
 
+    @BeforeEach
+    void beforeEach() {
+        server.getStore().clear();
     }
 
     @Test
-    void getMovies_whenEmpty_returnsEmptyArray() throws Exception {
+    void shouldReturnEmptyMoviesList() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .GET()
+                .build();
 
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(200, response.statusCode());
+
+        assertEquals(
+                "application/json; charset=UTF-8",
+                response.headers()
+                        .firstValue("Content-Type")
+                        .orElse("")
+        );
+
+        List<Movie> movies =
+                GSON.fromJson(
+                        response.body(),
+                        new TypeToken<List<Movie>>() {}.getType()
+                );
+
+        assertNotNull(movies);
+        assertTrue(movies.isEmpty());
+    }
+
+    @Test
+    void shouldCreateMovie() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .header(
+                        "Content-Type",
+                        "application/json"
+                )
+                .POST(
+                        HttpRequest.BodyPublishers.ofString(
+                                "{\"title\":\"Интерстеллар\",\"year\":2014}",
+                                StandardCharsets.UTF_8
+                        )
+                )
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(201, response.statusCode());
+
+        Movie movie =
+                GSON.fromJson(
+                        response.body(),
+                        Movie.class
+                );
+
+        assertNotNull(movie);
+        assertEquals(1, movie.getId());
+        assertEquals("Интерстеллар", movie.getTitle());
+        assertEquals(2014, movie.getYear());
+    }
+
+    @Test
+    void shouldReturnMoviesAfterCreation() throws Exception {
+        createMovie("Интерстеллар", 2014);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(200, response.statusCode());
+
+        List<Movie> movies =
+                parseMovies(response.body());
+
+        assertEquals(1, movies.size());
+        assertEquals(
+                "Интерстеллар",
+                movies.get(0).getTitle()
+        );
+        assertEquals(
+                2014,
+                movies.get(0).getYear()
+        );
+    }
+
+    @Test
+    void shouldReturnMovieById() throws Exception {
+        createMovie("Интерстеллар", 2014);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies/1"
+                ))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(200, response.statusCode());
+
+        Movie movie =
+                GSON.fromJson(
+                        response.body(),
+                        Movie.class
+                );
+
+        assertNotNull(movie);
+        assertEquals(1, movie.getId());
+        assertEquals(
+                "Интерстеллар",
+                movie.getTitle()
+        );
+        assertEquals(2014, movie.getYear());
+    }
+
+    @Test
+    void shouldReturn404ForUnknownMovie() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies/999"
+                ))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(404, response.statusCode());
+
+        ErrorResponse error =
+                GSON.fromJson(
+                        response.body(),
+                        ErrorResponse.class
+                );
+
+        assertNotNull(error);
+        assertEquals(
+                "Фильм не найден",
+                error.getError()
+        );
+        assertNotNull(error.getDetails());
+        assertTrue(error.getDetails().isEmpty());
+    }
+
+    @Test
+    void shouldReturn400ForInvalidMovieId() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies/abc"
+                ))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void shouldDeleteMovie() throws Exception {
+        createMovie("Интерстеллар", 2014);
+
+        HttpRequest deleteRequest =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(
+                                "http://localhost:8080/movies/1"
+                        ))
+                        .DELETE()
+                        .build();
+
+        HttpResponse<String> deleteResponse =
+                client.send(
+                        deleteRequest,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(
+                204,
+                deleteResponse.statusCode()
+        );
+
+        HttpRequest getRequest =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(
+                                "http://localhost:8080/movies/1"
+                        ))
+                        .GET()
+                        .build();
+
+        HttpResponse<String> getResponse =
+                client.send(
+                        getRequest,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(
+                404,
+                getResponse.statusCode()
+        );
+    }
+
+    @Test
+    void shouldReturn404WhenDeletingUnknownMovie()
+            throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies/999"
+                ))
+                .DELETE()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void shouldFilterMoviesByYear() throws Exception {
+        createMovie("Интерстеллар", 2014);
+        createMovie("Матрица", 1999);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies?year=2014"
+                ))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(200, response.statusCode());
+
+        List<Movie> movies =
+                parseMovies(response.body());
+
+        assertEquals(1, movies.size());
+        assertEquals(
+                "Интерстеллар",
+                movies.get(0).getTitle()
+        );
+        assertEquals(
+                2014,
+                movies.get(0).getYear()
+        );
+    }
+
+    @Test
+    void shouldReturnEmptyListForUnknownYear()
+            throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies?year=2000"
+                ))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(200, response.statusCode());
+
+        List<Movie> movies =
+                parseMovies(response.body());
+
+        assertNotNull(movies);
+        assertTrue(movies.isEmpty());
+    }
+
+    @Test
+    void shouldReturn400ForInvalidYear() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies?year=abc"
+                ))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void shouldReturn422ForEmptyTitle() throws Exception {
+        HttpResponse<String> response =
+                createMovieRequest(
+                        "{\"title\":\"\",\"year\":2014}"
+                );
+
+        assertEquals(422, response.statusCode());
+
+        ErrorResponse error =
+                GSON.fromJson(
+                        response.body(),
+                        ErrorResponse.class
+                );
+
+        assertEquals(
+                "Ошибка валидации",
+                error.getError()
+        );
+
+        assertNotNull(error.getDetails());
+        assertFalse(error.getDetails().isEmpty());
+    }
+
+    @Test
+    void shouldReturn422ForTooLongTitle()
+            throws Exception {
+        String title = "А".repeat(101);
+
+        HttpResponse<String> response =
+                createMovieRequest(
+                        "{\"title\":\"%s\",\"year\":2014}"
+                                .formatted(title)
+                );
+
+        assertEquals(422, response.statusCode());
+    }
+
+    @Test
+    void shouldReturn422ForInvalidYear()
+            throws Exception {
+        HttpResponse<String> response =
+                createMovieRequest(
+                        "{\"title\":\"Фильм\",\"year\":1800}"
+                );
+
+        assertEquals(422, response.statusCode());
+    }
+
+    @Test
+    void shouldReturn415ForWrongContentType()
+            throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .header(
+                        "Content-Type",
+                        "text/plain"
+                )
+                .POST(
+                        HttpRequest.BodyPublishers.ofString(
+                                "test",
+                                StandardCharsets.UTF_8
+                        )
+                )
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(415, response.statusCode());
+    }
+
+    @Test
+    void shouldReturn400ForInvalidJson()
+            throws Exception {
+        HttpResponse<String> response =
+                createMovieRequest(
+                        "{\"title\":\"Фильм\",\"year\":"
+                );
+
+        assertEquals(400, response.statusCode());
+
+        ErrorResponse error =
+                GSON.fromJson(
+                        response.body(),
+                        ErrorResponse.class
+                );
+
+        assertNotNull(error);
+        assertEquals(
+                "Некорректный JSON",
+                error.getError()
+        );
+        assertNotNull(error.getDetails());
+        assertTrue(error.getDetails().isEmpty());
+    }
+
+    @Test
+    void shouldReturn405ForUnsupportedMethod()
+            throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .method(
+                        "PUT",
+                        HttpRequest.BodyPublishers.noBody()
+                )
+                .build();
+
+        HttpResponse<String> response =
+                client.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString(
+                                StandardCharsets.UTF_8
+                        )
+                );
+
+        assertEquals(405, response.statusCode());
+    }
+
+    private void createMovie(
+            String title,
+            int year
+    ) throws Exception {
+        HttpResponse<String> response =
+                createMovieRequest(
+                        "{\"title\":\"%s\",\"year\":%d}"
+                                .formatted(title, year)
+                );
+
+        assertEquals(201, response.statusCode());
+    }
+
+    private HttpResponse<String> createMovieRequest(
+            String body
+    ) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:8080/movies"
+                ))
+                .header(
+                        "Content-Type",
+                        "application/json"
+                )
+                .POST(
+                        HttpRequest.BodyPublishers.ofString(
+                                body,
+                                StandardCharsets.UTF_8
+                        )
+                )
+                .build();
+
+        return client.send(
+                request,
+                HttpResponse.BodyHandlers.ofString(
+                        StandardCharsets.UTF_8
+                )
+        );
+    }
+
+    private List<Movie> parseMovies(String body) {
+        return GSON.fromJson(
+                body,
+                new TypeToken<List<Movie>>() {}.getType()
+        );
     }
 }
+
