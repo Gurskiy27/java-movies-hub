@@ -101,12 +101,7 @@ public class MoviesApiTest {
                 )
                 .POST(
                         HttpRequest.BodyPublishers.ofString(
-                                """
-                                {
-                                  "title": "Интерстеллар",
-                                  "year": 2014
-                                }
-                                """,
+                                "{\"title\":\"Интерстеллар\",\"year\":2014}",
                                 StandardCharsets.UTF_8
                         )
                 )
@@ -414,12 +409,7 @@ public class MoviesApiTest {
     void shouldReturn422ForEmptyTitle() throws Exception {
         HttpResponse<String> response =
                 createMovieRequest(
-                        """
-                        {
-                          "title": "",
-                          "year": 2014
-                        }
-                        """
+                        "{\"title\":\"\",\"year\":2014}"
                 );
 
         assertEquals(422, response.statusCode());
@@ -446,12 +436,8 @@ public class MoviesApiTest {
 
         HttpResponse<String> response =
                 createMovieRequest(
-                        """
-                        {
-                          "title": "%s",
-                          "year": 2014
-                        }
-                        """.formatted(title)
+                        "{\"title\":\"%s\",\"year\":2014}"
+                                .formatted(title)
                 );
 
         assertEquals(422, response.statusCode());
@@ -462,12 +448,7 @@ public class MoviesApiTest {
             throws Exception {
         HttpResponse<String> response =
                 createMovieRequest(
-                        """
-                        {
-                          "title": "Фильм",
-                          "year": 1800
-                        }
-                        """
+                        "{\"title\":\"Фильм\",\"year\":1800}"
                 );
 
         assertEquals(422, response.statusCode());
@@ -508,11 +489,7 @@ public class MoviesApiTest {
             throws Exception {
         HttpResponse<String> response =
                 createMovieRequest(
-                        """
-                        {
-                          "title": "Фильм",
-                          "year":
-                        """
+                        "{\"title\":\"Фильм\",\"year\":"
                 );
 
         assertEquals(400, response.statusCode());
@@ -562,12 +539,8 @@ public class MoviesApiTest {
     ) throws Exception {
         HttpResponse<String> response =
                 createMovieRequest(
-                        """
-                        {
-                          "title": "%s",
-                          "year": %d
-                        }
-                        """.formatted(title, year)
+                        "{\"title\":\"%s\",\"year\":%d}"
+                                .formatted(title, year)
                 );
 
         assertEquals(201, response.statusCode());
