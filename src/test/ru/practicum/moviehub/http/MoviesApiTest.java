@@ -1,8 +1,6 @@
 package ru.practicum.moviehub;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,7 +31,6 @@ public class MoviesApiTest {
 
     @BeforeAll
     static void beforeAll() {
-
         server = new MoviesServer(
                 new ru.practicum.moviehub.store.MoviesStore(),
                 8080
@@ -58,7 +55,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldReturnEmptyMoviesList() throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies"
@@ -86,8 +82,7 @@ public class MoviesApiTest {
         List<Movie> movies =
                 GSON.fromJson(
                         response.body(),
-                        new TypeToken<List<Movie>>() {
-                        }.getType()
+                        new TypeToken<List<Movie>>() {}.getType()
                 );
 
         assertNotNull(movies);
@@ -96,7 +91,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldCreateMovie() throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies"
@@ -142,7 +136,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldReturnMoviesAfterCreation() throws Exception {
-
         createMovie("Интерстеллар", 2014);
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -178,7 +171,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldReturnMovieById() throws Exception {
-
         createMovie("Интерстеллар", 2014);
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -215,7 +207,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldReturn404ForUnknownMovie() throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies/999"
@@ -250,7 +241,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldReturn400ForInvalidMovieId() throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies/abc"
@@ -271,7 +261,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldDeleteMovie() throws Exception {
-
         createMovie("Интерстеллар", 2014);
 
         HttpRequest deleteRequest =
@@ -320,7 +309,6 @@ public class MoviesApiTest {
     @Test
     void shouldReturn404WhenDeletingUnknownMovie()
             throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies/999"
@@ -341,7 +329,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldFilterMoviesByYear() throws Exception {
-
         createMovie("Интерстеллар", 2014);
         createMovie("Матрица", 1999);
 
@@ -379,7 +366,6 @@ public class MoviesApiTest {
     @Test
     void shouldReturnEmptyListForUnknownYear()
             throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies?year=2000"
@@ -406,7 +392,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldReturn400ForInvalidYear() throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies?year=abc"
@@ -427,7 +412,6 @@ public class MoviesApiTest {
 
     @Test
     void shouldReturn422ForEmptyTitle() throws Exception {
-
         HttpResponse<String> response =
                 createMovieRequest(
                         """
@@ -458,7 +442,6 @@ public class MoviesApiTest {
     @Test
     void shouldReturn422ForTooLongTitle()
             throws Exception {
-
         String title = "А".repeat(101);
 
         HttpResponse<String> response =
@@ -477,7 +460,6 @@ public class MoviesApiTest {
     @Test
     void shouldReturn422ForInvalidYear()
             throws Exception {
-
         HttpResponse<String> response =
                 createMovieRequest(
                         """
@@ -494,7 +476,6 @@ public class MoviesApiTest {
     @Test
     void shouldReturn415ForWrongContentType()
             throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies"
@@ -525,7 +506,6 @@ public class MoviesApiTest {
     @Test
     void shouldReturn400ForInvalidJson()
             throws Exception {
-
         HttpResponse<String> response =
                 createMovieRequest(
                         """
@@ -555,7 +535,6 @@ public class MoviesApiTest {
     @Test
     void shouldReturn405ForUnsupportedMethod()
             throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies"
@@ -581,7 +560,6 @@ public class MoviesApiTest {
             String title,
             int year
     ) throws Exception {
-
         HttpResponse<String> response =
                 createMovieRequest(
                         """
@@ -598,7 +576,6 @@ public class MoviesApiTest {
     private HttpResponse<String> createMovieRequest(
             String body
     ) throws Exception {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(
                         "http://localhost:8080/movies"
@@ -624,11 +601,10 @@ public class MoviesApiTest {
     }
 
     private List<Movie> parseMovies(String body) {
-
         return GSON.fromJson(
                 body,
-                new TypeToken<List<Movie>>() {
-                }.getType()
+                new TypeToken<List<Movie>>() {}.getType()
         );
     }
 }
+
